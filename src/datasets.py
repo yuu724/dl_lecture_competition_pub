@@ -177,6 +177,9 @@ class EventSlicer:
 class Sequence(Dataset):
     def __init__(self, seq_path: Path, representation_type: RepresentationType, mode: str = 'test', delta_t_ms: int = 100,
                  num_bins: int = 4, transforms=[], name_idx=0, visualize=False, load_gt=False):
+
+        ####print(f"Checking path: {seq_path}")#############
+
         assert num_bins >= 1
         assert delta_t_ms == 100
         assert seq_path.is_dir()
@@ -359,10 +362,43 @@ class Sequence(Dataset):
                 ][1] = torch.unsqueeze(output['flow_gt'][1], 0)
         return output
 
+    #def __getitem__(self, idx):
+    #    sample = self.get_data(idx)
+    #    return sample
+
+    ############################追加した##################################################################################################
     def __getitem__(self, idx):
         sample = self.get_data(idx)
+
+        # Apply data augmentation if transforms are defined and mode is 'train'
+        if self.transforms and self.mode == 'train':
+            event_volume = sample['event_volume']
+
+            # Perform flipping horizontally with 50% probability
+            if random.random() > 0.5:
+                event_volume = torch.flip(event_volume, dims=[2])  # Flip along the width dimension
+                if 'flow_gt' in sample:
+                    flow_gt = sample['flow_gt']
+                    flow_gt[0] = torch.flip(flow_gt[0], dims=[2])
+                    flow_gt[1] = torch.flip(flow_gt[1], dims=[2])
+                    flow_gt[0][0, :, :] *= -1  # Invert the horizontal flow component
+                    sample['flow_gt'] = flow_gt
+        
+            # Perform flipping vertically with 50% probability
+            if random.random() > 0.5:
+                event_volume = torch.flip(event_volume, dims=[1])  # Flip along the height dimension
+                if 'flow_gt' in sample:
+                    flow_gt = sample['flow_gt']
+                    flow_gt[0] = torch.flip(flow_gt[0], dims=[1])
+                    flow_gt[1] = torch.flip(flow_gt[1], dims=[1])
+                    flow_gt[0][1, :, :] *= -1  # Invert the vertical flow component
+                    sample['flow_gt'] = flow_gt
+
+            sample['event_volume'] = event_volume
+
         return sample
 
+    #############################################################################################################
     def get_voxel_grid(self, idx):
 
         if idx == 0:
